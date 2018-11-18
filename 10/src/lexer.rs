@@ -24,32 +24,9 @@ pub enum KeyWordKind {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum SymbolKind {
-    LBrace,
-    RBrace,
-    LParen,
-    RParen,
-    LBracket,
-    RBracket,
-    Dot,
-    Comma,
-    Semicolon,
-    Add,
-    Minus,
-    Star,
-    Slash,
-    Ampersand,
-    VerticalBar,
-    LT,
-    GT,
-    Assign,
-    Tilde,
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub enum Token {
     KeyWord(KeyWordKind),
-    Symbol(SymbolKind),
+    Symbol(char),
     IntegerConstant(u16),
     StringConstant(String),
     Ident(String),
@@ -57,7 +34,6 @@ pub enum Token {
 }
 
 use self::KeyWordKind::*;
-use self::SymbolKind::*;
 use self::Token::*;
 
 pub struct Lexer {
@@ -78,6 +54,7 @@ impl Lexer {
     }
 
     fn lex(&mut self) -> Token {
+        self.skip_whitespace();
         self.read_char();
         if let None = self.ch {
             return EOF;
@@ -91,23 +68,33 @@ impl Lexer {
                     literal.push_str(&self.ch.unwrap().to_string());
                     self.read_char();
                 }
+                self.backtrack();
                 IntegerConstant(literal.parse::<u16>().unwrap())
             }
             'a'..='z' | 'A'..='Z' => {
                 let mut literal = String::new();
-                while let Some('0'..='9') | Some('a'..='z') | Some('A'..='Z') = self.ch {
+                while let Some('0'..='9') | Some('a'..='z') | Some('A'..='Z') | Some('_') = self.ch
+                {
                     literal.push_str(&self.ch.unwrap().to_string());
                     self.read_char();
                 }
+                self.backtrack();
                 Lexer::lookup(literal)
             }
-            _ => panic!("err"),
+            '{' | '}' | '(' | ')' | '[' | ']' | '.' | ',' | ';' | '+' | '-' | '*' | '/' | '&'
+            | '|' | '<' | '>' | '=' | '~' => Symbol(ch),
+            _ => panic!("unexpected char!: '{:?}'", ch),
         }
     }
+
     fn skip_whitespace(&mut self) {
-        while let Some('\t') | Some(' ') | Some('\n') | Some('\r') = self.ch {
+        while let Some('\t') | Some(' ') | Some('\n') | Some('\r') = self.peek() {
             self.read_char();
         }
+    }
+
+    fn peek(&self) -> Option<char> {
+        self.src.chars().nth(self.index)
     }
 
     fn read_char(&mut self) {
@@ -144,6 +131,21 @@ impl Lexer {
             "return" => KeyWord(Return),
             _ => Ident(literal),
         }
+    }
+
+    fn lex_all(&mut self) {
+        loop {
+            let t = self.lex();
+            if let EOF = t {
+                break;
+            } else {
+                self.store(t);
+            }
+        }
+    }
+
+    fn backtrack(&mut self) {
+        self.index -= 1;
     }
 }
 
@@ -222,5 +224,64 @@ mod tests {
         test("else");
         test("while");
         test("return");
+    }
+
+    #[test]
+    fn tokenize_eof() {
+        let mut le = l(s(""));
+        assert_eq!(le.lex(), EOF);
+    }
+
+    #[test]
+    fn tokenize_symbol() {
+        fn test(input: char) {
+            let st = input.to_string();
+            let mut le = l(st.clone());
+            assert_eq!(le.lex(), Symbol(input));
+        }
+
+        test('{');
+        test('}');
+        test('(');
+        test(')');
+        test('[');
+        test(']');
+        test('.');
+        test(',');
+        test(';');
+        test('+');
+        test('-');
+        test('*');
+        test('/');
+        test('&');
+        test('|');
+        test('<');
+        test('>');
+        test('=');
+        test('~');
+    }
+
+    #[test]
+    fn tokenize_stmt() {
+        fn test(input: &'static str, right: Vec<Token>) {
+            let mut le = l(s(input));
+            le.lex_all();
+            assert_eq!(le.result, right);
+        }
+        test(
+            "if ( 1 < 2) return true;",
+            vec![
+                KeyWord(If),
+                Symbol('('),
+                IntegerConstant(1),
+                Symbol('<'),
+                IntegerConstant(2),
+                Symbol(')'),
+                KeyWord(Return),
+                KeyWord(True),
+                Symbol(';'),
+            ],
+        );
+        test("123;", vec![IntegerConstant(123), Symbol(';')]);
     }
 }
