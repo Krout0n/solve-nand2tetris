@@ -78,7 +78,6 @@ impl Lexer {
     }
 
     fn lex(&mut self) -> Token {
-        // Symbol(LT)
         self.read_char();
         if let None = self.ch {
             return EOF;
@@ -88,11 +87,19 @@ impl Lexer {
         match ch {
             '0'..='9' => {
                 let mut literal = String::new();
-                while let Some('0' ..= '9') = self.ch {
+                while let Some('0'..='9') = self.ch {
                     literal.push_str(&self.ch.unwrap().to_string());
                     self.read_char();
                 }
                 IntegerConstant(literal.parse::<u16>().unwrap())
+            }
+            'a'..='z' | 'A'..='Z' => {
+                let mut literal = String::new();
+                while let Some('0'..='9') | Some('a'..='z') | Some('A'..='Z') = self.ch {
+                    literal.push_str(&self.ch.unwrap().to_string());
+                    self.read_char();
+                }
+                Lexer::lookup(literal)
             }
             _ => panic!("err"),
         }
@@ -111,12 +118,40 @@ impl Lexer {
     fn store(&mut self, t: Token) {
         self.result.push(t);
     }
+
+    fn lookup(literal: String) -> Token {
+        match &*literal {
+            "class" => KeyWord(Class),
+            "constructor" => KeyWord(Constructor),
+            "function" => KeyWord(Function),
+            "method" => KeyWord(Method),
+            "field" => KeyWord(Field),
+            "static" => KeyWord(Static),
+            "var" => KeyWord(Var),
+            "int" => KeyWord(Int),
+            "char" => KeyWord(Char),
+            "boolean" => KeyWord(Boolean),
+            "void" => KeyWord(Void),
+            "true" => KeyWord(True),
+            "false" => KeyWord(False),
+            "null" => KeyWord(Null),
+            "this" => KeyWord(This),
+            "let" => KeyWord(Let),
+            "do" => KeyWord(Do),
+            "if" => KeyWord(If),
+            "else" => KeyWord(Else),
+            "while" => KeyWord(While),
+            "return" => KeyWord(Return),
+            _ => Ident(literal),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use self::KeyWordKind::*;
     use self::Token::*;
-    use super::{Lexer, Token};
+    use super::{KeyWordKind, Lexer, Token};
 
     fn s(st: &'static str) -> String {
         st.to_string()
@@ -134,12 +169,58 @@ mod tests {
         assert_eq!(lex.src, s("hogefuga~"));
     }
     #[test]
-    fn test_int_const() {
-        let input = s("1");
-        let mut le = l(input);
-        assert_eq!(le.lex(), IntegerConstant(1));
-        let input = s("12345");
-        let mut le = l(input);
-        assert_eq!(le.lex(), IntegerConstant(12345));
+    fn tokenize_int_const() {
+        fn test(input: &'static str) {
+            let st = s(input);
+            let mut le = l(st);
+            assert_eq!(le.lex(), IntegerConstant(input.parse::<u16>().unwrap()));
+        }
+
+        test("1");
+        test("1345");
+    }
+
+    #[test]
+    fn tokenize_ident() {
+        fn test(input: &'static str) {
+            let st = s(input);
+            let mut le = l(st);
+            assert_eq!(le.lex(), Ident(s(input)));
+        }
+
+        test("hogefuga");
+        test("kuruton");
+        test("a1b3j0");
+    }
+
+    #[test]
+    fn tokenize_keyword() {
+        fn test(input: &'static str) {
+            let st = s(input);
+            let mut le = l(st.clone());
+            assert_eq!(le.lex(), Lexer::lookup(st));
+        }
+
+        test("class");
+        test("constructor");
+        test("function");
+        test("method");
+        test("field");
+        test("static");
+        test("var");
+        test("int");
+        test("char");
+        test("boolean");
+        test("void");
+        test("true");
+        test("false");
+        test("null");
+        test("this");
+        test("let");
+        test("do");
+        test("if");
+        test("else");
+        test("while");
+        test("return");
     }
 }
