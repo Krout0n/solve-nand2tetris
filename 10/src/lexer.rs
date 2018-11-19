@@ -40,11 +40,11 @@ pub struct Lexer {
     index: usize,
     src: String,
     ch: Option<char>,
-    result: Vec<Token>,
+    pub result: Vec<Token>,
 }
 
 impl Lexer {
-    fn new(src: String) -> Self {
+    pub fn new(src: String) -> Self {
         Lexer {
             index: 0,
             src,
@@ -133,7 +133,7 @@ impl Lexer {
         }
     }
 
-    fn lex_all(&mut self) {
+    pub fn lex_all(&mut self) {
         loop {
             let t = self.lex();
             if let EOF = t {
