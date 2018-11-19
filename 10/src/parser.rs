@@ -21,6 +21,10 @@ pub enum AST {
 use self::AST::*;
 
 impl AST {
+    fn unaryop(op: char, left: AST) -> Self {
+        AST::UnaryOP(op, Box::new(left))
+    }
+
     fn binop(op: char, left: AST, right: AST) -> Self {
         AST::BinOP(op, Box::new(left), Box::new(right))
     }
@@ -46,6 +50,8 @@ impl Parser {
         match t {
             IntegerConstant(i) => Int(i),
             Ident(s) => Identifier(s),
+            Symbol('-') => AST::unaryop('-', self.term()),
+            Symbol('~') => AST::unaryop('~', self.term()),
             _ => panic!("term error! {:?}", t),
         }
     }
@@ -89,6 +95,10 @@ mod tests {
     use self::AST::*;
     use super::{Parser, Token, AST};
 
+    fn ident(x: &'static str) -> Token {
+        Ident(x.to_string())
+    }
+
     #[test]
     fn integer() {
         fn test(t: Token, ast: AST) {
@@ -119,12 +129,26 @@ mod tests {
             AST::binop('*', AST::binop('+', Int(1), Int(2)), Int(3)),
         );
         test(
-            vec![
-                Ident("x".to_string()),
-                Symbol('+'),
-                IntegerConstant(2),
-            ],
+            vec![ident("x"), Symbol('+'), IntegerConstant(2)],
             AST::binop('+', Identifier("x".to_string()), Int(2)),
         );
+    }
+
+    #[test]
+    fn unary() {
+        fn test(v: Vec<Token>, ast: AST) {
+            let mut p = Parser::new(v);
+            assert_eq!(p.term(), ast);
+        }
+
+        test(
+            vec![Symbol('-'), IntegerConstant(1)],
+            AST::unaryop('-', Int(1)),
+        );
+
+        test(
+            vec![Symbol('~'), ident("x")],
+            AST::unaryop('~', Identifier("x".to_string())),
+        )
     }
 }
