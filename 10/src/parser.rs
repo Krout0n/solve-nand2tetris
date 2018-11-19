@@ -1,26 +1,23 @@
 use self::Token::*;
-use lexer::Token;
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum KeyWordConstant {
-    True,
-    False,
-    Null,
-    This,
-}
+use lexer::{KeyWordKind, Token};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AST {
-    Int(u16),
+    Integer(u16),
+    LetStmt(String, Box<AST>),
     Identifier(String),
     BinOP(char, Box<AST>, Box<AST>),
     UnaryOP(char, Box<AST>),
-    KeyWord(KeyWordConstant),
+    Bool(bool),
 }
 
 use self::AST::*;
 
 impl AST {
+    fn let_stmt(name: String, expr: AST) -> Self {
+        LetStmt(name, Box::new(expr))
+    }
+
     fn unaryop(op: char, left: AST) -> Self {
         AST::UnaryOP(op, Box::new(left))
     }
@@ -48,7 +45,7 @@ impl Parser {
     fn term(&mut self) -> AST {
         let t = self.get();
         match t {
-            IntegerConstant(i) => Int(i),
+            IntegerConstant(i) => Integer(i),
             Ident(s) => Identifier(s),
             Symbol('-') => AST::unaryop('-', self.term()),
             Symbol('~') => AST::unaryop('~', self.term()),
@@ -59,19 +56,31 @@ impl Parser {
     fn expression(&mut self) -> AST {
         let mut left = self.term();
         loop {
-            if let Symbol(c) = self.peek() {
-                self.get();
-                match c {
+            if let Symbol(op) = self.peek() {
+                match op {
                     '+' | '-' | '*' | '/' | '<' | '>' | '&' | '|' => {
-                        left = AST::binop(c, left, self.term());
+                        self.get();
+                        left = AST::binop(op, left, self.term());
                     }
-                    _ => panic!("unexpected binop! {:?}", c),
-                }
+                    _ => break,
+                };
             } else {
                 break;
             }
         }
         left
+    }
+
+    fn let_stmt(&mut self) -> AST {
+        self.get();
+        if let Ident(name) = self.get() {
+            assert_eq!(self.get(), Symbol('='));
+            let stmt = AST::let_stmt(name, self.expression());
+            assert_eq!(self.get(), Symbol(';'));
+            stmt
+        } else {
+            panic!("expected ident token!");
+        }
     }
 
     fn peek(&self) -> Token {
@@ -91,9 +100,10 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
+    use self::KeyWordKind::*;
     use self::Token::*;
     use self::AST::*;
-    use super::{Parser, Token, AST};
+    use super::{KeyWordKind, Parser, Token, AST};
 
     fn ident(x: &'static str) -> Token {
         Ident(x.to_string())
@@ -105,7 +115,7 @@ mod tests {
             let mut p = Parser::new(vec![t]);
             assert_eq!(p.term(), ast);
         }
-        test(IntegerConstant(10), Int(10));
+        test(IntegerConstant(10), Integer(10));
     }
 
     #[test]
@@ -116,7 +126,7 @@ mod tests {
         }
         test(
             vec![IntegerConstant(1), Symbol('+'), IntegerConstant(2)],
-            AST::binop('+', Int(1), Int(2)),
+            AST::binop('+', Integer(1), Integer(2)),
         );
         test(
             vec![
@@ -126,11 +136,11 @@ mod tests {
                 Symbol('*'),
                 IntegerConstant(3),
             ],
-            AST::binop('*', AST::binop('+', Int(1), Int(2)), Int(3)),
+            AST::binop('*', AST::binop('+', Integer(1), Integer(2)), Integer(3)),
         );
         test(
             vec![ident("x"), Symbol('+'), IntegerConstant(2)],
-            AST::binop('+', Identifier("x".to_string()), Int(2)),
+            AST::binop('+', Identifier("x".to_string()), Integer(2)),
         );
     }
 
@@ -143,12 +153,43 @@ mod tests {
 
         test(
             vec![Symbol('-'), IntegerConstant(1)],
-            AST::unaryop('-', Int(1)),
+            AST::unaryop('-', Integer(1)),
         );
 
         test(
             vec![Symbol('~'), ident("x")],
             AST::unaryop('~', Identifier("x".to_string())),
         )
+    }
+
+    #[test]
+    fn let_stmt() {
+        fn test(v: Vec<Token>, ast: AST) {
+            let mut p = Parser::new(v);
+            assert_eq!(p.let_stmt(), ast);
+        }
+
+        test(
+            vec![
+                KeyWord(Let),
+                ident("x"),
+                Symbol('='),
+                IntegerConstant(1),
+                Symbol(';'),
+            ],
+            AST::let_stmt("x".to_string(), Integer(1)),
+        );
+        test(
+            vec![
+                KeyWord(Let),
+                ident("x"),
+                Symbol('='),
+                IntegerConstant(1),
+                Symbol('-'),
+                IntegerConstant(10),
+                Symbol(';'),
+            ],
+            AST::let_stmt("x".to_string(), AST::binop('-', Integer(1), Integer(10))),
+        );
     }
 }
