@@ -5,6 +5,7 @@ use lexer::{KeyWordKind, Token};
 pub enum AST {
     Integer(u16),
     LetStmt(String, Box<AST>),
+    WhileStmt(Box<AST>, Box<AST>),
     Identifier(String),
     BinOP(char, Box<AST>, Box<AST>),
     UnaryOP(char, Box<AST>),
@@ -16,6 +17,10 @@ use self::AST::*;
 impl AST {
     fn let_stmt(name: String, expr: AST) -> Self {
         LetStmt(name, Box::new(expr))
+    }
+
+    fn while_stmt(cond: AST, stmt: AST) -> Self {
+        WhileStmt(Box::new(cond), Box::new(stmt))
     }
 
     fn unaryop(op: char, left: AST) -> Self {
@@ -72,14 +77,37 @@ impl Parser {
     }
 
     fn let_stmt(&mut self) -> AST {
-        self.get();
-        if let Ident(name) = self.get() {
+        let t = self.get();
+        if let Ident(name) = t {
             assert_eq!(self.get(), Symbol('='));
             let stmt = AST::let_stmt(name, self.expression());
             assert_eq!(self.get(), Symbol(';'));
             stmt
         } else {
-            panic!("expected ident token!");
+            panic!("expected ident token! {:#?}", t);
+        }
+    }
+
+    fn while_stmt(&mut self) -> AST {
+        assert_eq!(self.get(), Symbol('('));
+        let cond = self.expression();
+        assert_eq!(self.get(), Symbol(')'));
+        assert_eq!(self.get(), Symbol('{'));
+        let stmts = self.statement();
+        assert_eq!(self.get(), Symbol('}'));
+        AST::while_stmt(cond, stmts)
+    }
+
+    fn statement(&mut self) -> AST {
+        let t = self.get();
+        if let KeyWord(word) = t {
+            match word {
+                KeyWordKind::Let => self.let_stmt(),
+                KeyWordKind::While => self.while_stmt(),
+                _ => panic!("undefined statement!")
+            }
+        } else {
+            panic!("expected stmt!");
         }
     }
 
@@ -104,9 +132,16 @@ mod tests {
     use self::Token::*;
     use self::AST::*;
     use super::{KeyWordKind, Parser, Token, AST};
+    use lexer::Lexer;
 
     fn ident(x: &'static str) -> Token {
         Ident(x.to_string())
+    }
+
+    fn tokenize(input: &'static str) -> Vec<Token> {
+        let mut l = Lexer::new(input.to_string());
+        l.lex_all();
+        l.result
     }
 
     #[test]
@@ -166,7 +201,7 @@ mod tests {
     fn let_stmt() {
         fn test(v: Vec<Token>, ast: AST) {
             let mut p = Parser::new(v);
-            assert_eq!(p.let_stmt(), ast);
+            assert_eq!(p.statement(), ast);
         }
 
         test(
@@ -190,6 +225,18 @@ mod tests {
                 Symbol(';'),
             ],
             AST::let_stmt("x".to_string(), AST::binop('-', Integer(1), Integer(10))),
+        );
+    }
+
+    #[test]
+    fn while_stmt() {
+        fn test(v: Vec<Token>, ast: AST) {
+            let mut p = Parser::new(v);
+            assert_eq!(p.statement(), ast);
+        }
+        test(
+            tokenize("while (1) { let x = 1;} "),
+            AST::while_stmt(Integer(1), AST::let_stmt("x".to_string(), Integer(1))),
         );
     }
 }
