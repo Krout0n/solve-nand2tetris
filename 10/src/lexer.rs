@@ -61,6 +61,36 @@ impl Lexer {
         };
 
         let ch = self.ch.unwrap();
+
+        // ignore comment out
+        if '/' == ch {
+            self.read_char();
+            match self.ch {
+                Some('/') => {
+                    loop {
+                        match self.ch {
+                            Some('\n') | None => break,
+                            _ => self.read_char(),
+                        };
+                    }
+                    return self.lex();
+                }
+                Some('*') => loop {
+                    self.read_char();
+                    if let Some('*') = self.ch {
+                        self.read_char();
+                        if let Some('/') = self.ch {
+                            return self.lex();
+                        }
+                    } else if let None = self.ch {
+                        panic!("unmatched comment!");
+                    }
+                },
+                _ => (),
+            };
+            self.backtrack();
+        }
+
         match ch {
             '0'..='9' => {
                 let mut literal = String::new();
@@ -303,5 +333,61 @@ mod tests {
         }
         test("hello");
         test("hello, world");
+    }
+
+    #[test]
+    fn comment() {
+        fn test(input: &'static str, right: Vec<Token>) {
+            let mut le = l(s(input));
+            le.lex_all();
+            assert_eq!(le.result, right);
+        }
+
+        test("// kuruton is god", vec![]);
+        test(
+            r#" // kuruton is god
+        if ( 1 < 2) return true;"#,
+            vec![
+                KeyWord(If),
+                Symbol('('),
+                IntegerConstant(1),
+                Symbol('<'),
+                IntegerConstant(2),
+                Symbol(')'),
+                KeyWord(Return),
+                KeyWord(True),
+                Symbol(';'),
+            ],
+        );
+        test(
+            "static boolean test;    // Added for testing -- there is no static keyword",
+            vec![
+                KeyWord(Static),
+                KeyWord(Boolean),
+                Ident("test".to_string()),
+                Symbol(';'),
+            ],
+        );
+
+        test(
+            "/** Initializes a new Square Dance game and starts running it. */ class Main {}",
+            vec![
+                KeyWord(Class),
+                Ident("Main".to_string()),
+                Symbol('{'),
+                Symbol('}'),
+            ],
+        );
+
+        test(
+            r#"/** Initializes a new
+            Square Dance game and starts running it. */class Main {}"#,
+            vec![
+                KeyWord(Class),
+                Ident("Main".to_string()),
+                Symbol('{'),
+                Symbol('}'),
+            ],
+        );
     }
 }
