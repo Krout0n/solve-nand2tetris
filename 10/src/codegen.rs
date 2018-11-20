@@ -10,6 +10,9 @@ pub fn output_tokens(v: Vec<Token>) {
     for token in v {
         match token {
             IntegerConstant(i) => print_format("integerConstant", i.to_string()),
+            Symbol('<') => print_format("symbol", "&lt;".to_string()),
+            Symbol('>') => print_format("symbol", "&gt;".to_string()),
+            Symbol('&') => print_format("symbol", "&amp;".to_string()),
             Symbol(c) => print_format("symbol", c.to_string()),
             Ident(s) => print_format("identifier", s),
             StringConstant(s) => print_format("stringConstant", s),
@@ -37,7 +40,8 @@ pub fn output_tokens(v: Vec<Token>) {
                     KeyWordKind::Else => "else",
                     KeyWordKind::While => "while",
                     KeyWordKind::Return => "return",
-                }.to_string(),
+                }
+                .to_string(),
             ),
             EOF => break,
         };
