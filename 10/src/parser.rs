@@ -14,6 +14,7 @@ pub enum AST {
     Integer(u16),
     Identifier(String),
     SubroutineCall(String, Vec<AST>),
+    MethodCall(String, String, Vec<AST>),
     VarDec(VarType, Vec<String>),
     LetStmt(String, Box<AST>),
     WhileStmt(Box<AST>, Box<AST>),
@@ -104,6 +105,13 @@ impl Parser {
             Ident(s) => {
                 if let Symbol('(') = self.peek() {
                     AST::SubroutineCall(s, self.expression_list())
+                } else if let Symbol('.') = self.peek() {
+                    self.get();
+                    if let Ident(t) = self.get() {
+                        AST::MethodCall(s, t, self.expression_list())
+                    } else {
+                        panic!("expected ident!");
+                    }
                 } else {
                     Identifier(s)
                 }
@@ -488,20 +496,34 @@ mod tests {
 
     #[test]
     fn subroutine_call() {
-        fn test(v: Vec<Token>, ast: AST) {
-            let mut p = Parser::new(v);
+        fn test(v: &'static str, ast: AST) {
+            let mut p = Parser::new(tokenize(v));
             assert_eq!(p.term(), ast);
         }
+
         fn subroutine_call(s: &'static str, expr_list: Vec<AST>) -> AST {
             AST::SubroutineCall(s.to_string(), expr_list)
         }
 
-        test(tokenize("add()"), subroutine_call("add", vec![]));
+        fn method_call(s: &'static str, t: &'static str, v: Vec<AST>) -> AST {
+            AST::MethodCall(s.to_string(), t.to_string(), v)
+        }
+
+        test("add()", subroutine_call("add", vec![]));
         test(
-            tokenize("add(1, 2+3)"),
+            "add(1, 2+3)",
             subroutine_call(
                 "add",
                 vec![AST::Integer(1), AST::binop('+', Integer(2), Integer(3))],
+            ),
+        );
+        test("hoge.to_string()", method_call("hoge", "to_string", vec![]));
+        test(
+            "hoge.add(true, 2+3)",
+            method_call(
+                "hoge",
+                "add",
+                vec![AST::Bool(true), AST::binop('+', Integer(2), Integer(3))],
             ),
         );
     }
