@@ -100,22 +100,22 @@ impl Parser {
     }
 
     fn while_stmt(&mut self) -> AST {
-        assert_eq!(self.get(), Symbol('('));
+        self.expect(Symbol('('));
         let cond = self.expression();
-        assert_eq!(self.get(), Symbol(')'));
-        assert_eq!(self.get(), Symbol('{'));
+        self.expect(Symbol(')'));
+        self.expect(Symbol('{'));
         let stmts = self.statement();
-        assert_eq!(self.get(), Symbol('}'));
+        self.expect(Symbol('}'));
         AST::while_stmt(cond, stmts)
     }
 
     fn if_stmt(&mut self) -> AST {
-        assert_eq!(self.get(), Symbol('('));
+        self.expect(Symbol('('));
         let cond = self.expression();
-        assert_eq!(self.get(), Symbol(')'));
-        assert_eq!(self.get(), Symbol('{'));
+        self.expect(Symbol(')'));
+        self.expect(Symbol('{'));
         let stmts = self.statement();
-        assert_eq!(self.get(), Symbol('}'));
+        self.expect(Symbol('}'));
         AST::if_stmt(cond, stmts)
     }
 
@@ -131,6 +131,10 @@ impl Parser {
         } else {
             panic!("expected stmt! {:?}", t);
         }
+    }
+
+    fn expect(&mut self, t: Token) {
+        assert_eq!(self.get(), t);
     }
 
     fn peek(&self) -> Token {
