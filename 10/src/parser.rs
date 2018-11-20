@@ -7,6 +7,7 @@ pub enum AST {
     LetStmt(String, Box<AST>),
     WhileStmt(Box<AST>, Box<AST>),
     IfStmt(Box<AST>, Box<AST>),
+    Compound(Vec<AST>),
     Identifier(String),
     BinOP(char, Box<AST>, Box<AST>),
     UnaryOP(char, Box<AST>),
@@ -28,6 +29,10 @@ impl AST {
 
     fn if_stmt(cond: AST, stmt: AST) -> Self {
         IfStmt(Box::new(cond), Box::new(stmt))
+    }
+
+    fn compound() -> Self {
+        AST::Compound(vec![])
     }
 
     fn unaryop(op: char, left: AST) -> Self {
@@ -104,7 +109,7 @@ impl Parser {
         let cond = self.expression();
         self.expect(Symbol(')'));
         self.expect(Symbol('{'));
-        let stmts = self.statement();
+        let stmts = self.statements();
         self.expect(Symbol('}'));
         AST::while_stmt(cond, stmts)
     }
@@ -114,7 +119,7 @@ impl Parser {
         let cond = self.expression();
         self.expect(Symbol(')'));
         self.expect(Symbol('{'));
-        let stmts = self.statement();
+        let stmts = self.statements();
         self.expect(Symbol('}'));
         AST::if_stmt(cond, stmts)
     }
@@ -131,6 +136,18 @@ impl Parser {
         } else {
             panic!("expected stmt! {:?}", t);
         }
+    }
+
+    fn statements(&mut self) -> AST {
+        let mut stmts = vec![];
+        loop {
+            if self.peek() == Symbol('}') {
+                break;
+            } else {
+                stmts.push(self.statement());
+            }
+        }
+        AST::Compound(stmts)
     }
 
     fn expect(&mut self, t: Token) {
@@ -262,7 +279,10 @@ mod tests {
         }
         test(
             tokenize("while (1) { let x = 1;} "),
-            AST::while_stmt(Integer(1), AST::let_stmt("x".to_string(), Integer(1))),
+            AST::while_stmt(
+                Integer(1),
+                AST::Compound(vec![AST::let_stmt("x".to_string(), Integer(1))]),
+            ),
         );
     }
 
@@ -276,7 +296,9 @@ mod tests {
             tokenize("if (1 < 2) { let x = 1;} "),
             AST::if_stmt(
                 AST::binop('<', Integer(1), Integer(2)),
-                AST::let_stmt("x".to_string(), Integer(1)),
+                AST::Compound(vec![
+                    AST::let_stmt("x".to_string(), Integer(1))
+                ])
             ),
         );
     }
@@ -293,4 +315,21 @@ mod tests {
         test(KeyWord(KeyWordKind::This), AST::This);
     }
 
+    #[test]
+    fn statements() {
+        fn test(v: Vec<Token>, ast: AST) {
+            let mut p = Parser::new(v);
+            assert_eq!(p.statement(), ast);
+        }
+        test(
+            tokenize("if (1 < 2) { let x = 1; let y = 2;} "),
+            AST::if_stmt(
+                AST::binop('<', Integer(1), Integer(2)),
+                AST::Compound(vec![
+                    AST::let_stmt("x".to_string(), Integer(1)),
+                    AST::let_stmt("y".to_string(), Integer(2)),
+                ]),
+            ),
+        );
+    }
 }
