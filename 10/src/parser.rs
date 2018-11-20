@@ -11,6 +11,8 @@ pub enum AST {
     BinOP(char, Box<AST>, Box<AST>),
     UnaryOP(char, Box<AST>),
     Bool(bool),
+    Null,
+    This,
 }
 
 use self::AST::*;
@@ -59,6 +61,10 @@ impl Parser {
             Ident(s) => Identifier(s),
             Symbol('-') => AST::unaryop('-', self.term()),
             Symbol('~') => AST::unaryop('~', self.term()),
+            KeyWord(KeyWordKind::True) => Bool(true),
+            KeyWord(KeyWordKind::False) => Bool(false),
+            KeyWord(KeyWordKind::Null) => Null,
+            KeyWord(KeyWordKind::This) => This,
             _ => panic!("term error! {:?}", t),
         }
     }
@@ -270,4 +276,17 @@ mod tests {
             ),
         );
     }
+
+    #[test]
+    fn keyword_constant() {
+        fn test(t: Token, ast: AST) {
+            let mut p = Parser::new(vec![t]);
+            assert_eq!(p.term(), ast);
+        }
+        test(KeyWord(True), Bool(true));
+        test(KeyWord(False), Bool(false));
+        test(KeyWord(KeyWordKind::Null), AST::Null);
+        test(KeyWord(KeyWordKind::This), AST::This);
+    }
+
 }
