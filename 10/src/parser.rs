@@ -2,14 +2,23 @@ use self::Token::*;
 use lexer::{KeyWordKind, Token};
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum VarType {
+    Int,
+    Char,
+    Boolean,
+    UsrDef(String),
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum AST {
     Integer(u16),
+    Identifier(String),
+    VarDec(VarType, Vec<String>),
     LetStmt(String, Box<AST>),
     WhileStmt(Box<AST>, Box<AST>),
     IfStmt(Box<AST>, Box<AST>, Option<Box<AST>>),
     ReturnStmt(Option<Box<AST>>),
     Compound(Vec<AST>),
-    Identifier(String),
     BinOP(char, Box<AST>, Box<AST>),
     UnaryOP(char, Box<AST>),
     Bool(bool),
@@ -185,6 +194,32 @@ impl Parser {
         AST::Compound(stmts)
     }
 
+    fn var_dec(&mut self) -> AST {
+        self.expect(KeyWord(KeyWordKind::Var));
+        let typ = match self.get() {
+            KeyWord(KeyWordKind::Int) => VarType::Int,
+            KeyWord(KeyWordKind::Char) => VarType::Char,
+            KeyWord(KeyWordKind::Boolean) => VarType::Boolean,
+            err_token => panic!("vardecl: expected type keyword!! {:?}", err_token),
+        };
+        let mut vars = vec![];
+        if let Ident(s) = self.get() {
+            vars.push(s);
+        } else {
+            panic!("vardecl: expected ident!!");
+        }
+        while let Symbol(',') = self.peek() {
+            self.get();
+            if let Ident(s) = self.get() {
+                vars.push(s);
+            } else {
+                panic!("vardecl: expected ident!!");
+            }
+        }
+        self.expect(Symbol(';'));
+        AST::VarDec(typ, vars)
+    }
+
     fn expect(&mut self, t: Token) {
         assert_eq!(self.get(), t);
     }
@@ -209,7 +244,7 @@ mod tests {
     use self::KeyWordKind::*;
     use self::Token::*;
     use self::AST::*;
-    use super::{KeyWordKind, Parser, Token, AST};
+    use super::{KeyWordKind, Parser, Token, VarType, AST};
     use lexer::Lexer;
 
     fn ident(x: &'static str) -> Token {
@@ -405,5 +440,29 @@ mod tests {
             AST::return_stmt(Some(AST::binop('+', Integer(1), Integer(2)))),
         );
         test(tokenize("return ;"), AST::return_stmt(None))
+    }
+
+    #[test]
+    fn var_dec() {
+        fn test(v: Vec<Token>, ast: AST) {
+            let mut p = Parser::new(v);
+            assert_eq!(p.var_dec(), ast);
+        }
+        test(
+            tokenize("var int i;"),
+            AST::VarDec(VarType::Int, vec!["i".to_string()]),
+        );
+        test(
+            tokenize("var char c;"),
+            AST::VarDec(VarType::Char, vec!["c".to_string()]),
+        );
+        test(
+            tokenize("var boolean b;"),
+            AST::VarDec(VarType::Boolean, vec!["b".to_string()]),
+        );
+        test(
+            tokenize("var int x,y;"),
+            AST::VarDec(VarType::Int, vec!["x".to_string(), "y".to_string()]),
+        )
     }
 }
