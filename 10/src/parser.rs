@@ -6,6 +6,7 @@ pub enum AST {
     Integer(u16),
     LetStmt(String, Box<AST>),
     WhileStmt(Box<AST>, Box<AST>),
+    IfStmt(Box<AST>, Box<AST>),
     Identifier(String),
     BinOP(char, Box<AST>, Box<AST>),
     UnaryOP(char, Box<AST>),
@@ -21,6 +22,10 @@ impl AST {
 
     fn while_stmt(cond: AST, stmt: AST) -> Self {
         WhileStmt(Box::new(cond), Box::new(stmt))
+    }
+
+    fn if_stmt(cond: AST, stmt: AST) -> Self {
+        IfStmt(Box::new(cond), Box::new(stmt))
     }
 
     fn unaryop(op: char, left: AST) -> Self {
@@ -98,16 +103,27 @@ impl Parser {
         AST::while_stmt(cond, stmts)
     }
 
+    fn if_stmt(&mut self) -> AST {
+        assert_eq!(self.get(), Symbol('('));
+        let cond = self.expression();
+        assert_eq!(self.get(), Symbol(')'));
+        assert_eq!(self.get(), Symbol('{'));
+        let stmts = self.statement();
+        assert_eq!(self.get(), Symbol('}'));
+        AST::if_stmt(cond, stmts)
+    }
+
     fn statement(&mut self) -> AST {
         let t = self.get();
         if let KeyWord(word) = t {
             match word {
                 KeyWordKind::Let => self.let_stmt(),
                 KeyWordKind::While => self.while_stmt(),
-                _ => panic!("undefined statement!")
+                KeyWordKind::If => self.if_stmt(),
+                unexpected => panic!("undefined statement! {:?}", unexpected),
             }
         } else {
-            panic!("expected stmt!");
+            panic!("expected stmt! {:?}", t);
         }
     }
 
@@ -237,6 +253,21 @@ mod tests {
         test(
             tokenize("while (1) { let x = 1;} "),
             AST::while_stmt(Integer(1), AST::let_stmt("x".to_string(), Integer(1))),
+        );
+    }
+
+    #[test]
+    fn if_stmt() {
+        fn test(v: Vec<Token>, ast: AST) {
+            let mut p = Parser::new(v);
+            assert_eq!(p.statement(), ast);
+        }
+        test(
+            tokenize("if (1 < 2) { let x = 1;} "),
+            AST::if_stmt(
+                AST::binop('<', Integer(1), Integer(2)),
+                AST::let_stmt("x".to_string(), Integer(1)),
+            ),
         );
     }
 }
