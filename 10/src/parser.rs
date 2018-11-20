@@ -7,6 +7,7 @@ pub enum AST {
     LetStmt(String, Box<AST>),
     WhileStmt(Box<AST>, Box<AST>),
     IfStmt(Box<AST>, Box<AST>, Option<Box<AST>>),
+    ReturnStmt(Option<Box<AST>>),
     Compound(Vec<AST>),
     Identifier(String),
     BinOP(char, Box<AST>, Box<AST>),
@@ -34,6 +35,14 @@ impl AST {
             IfStmt(cond, stmts, Some(Box::new(else_stmt)))
         } else {
             IfStmt(cond, stmts, None)
+        }
+    }
+
+    fn return_stmt(expr: Option<AST>) -> Self {
+        if let Some(expr) = expr {
+            AST::ReturnStmt(Some(Box::new(expr)))
+        } else {
+            AST::ReturnStmt(None)
         }
     }
 
@@ -138,6 +147,17 @@ impl Parser {
         }
     }
 
+    fn return_stmt(&mut self) -> AST {
+        if let Symbol(';') = self.peek() {
+            self.get();
+            AST::return_stmt(None)
+        } else {
+            let expr = self.expression();
+            self.expect(Symbol(';'));
+            AST::return_stmt(Some(expr))
+        }
+    }
+
     fn statement(&mut self) -> AST {
         let t = self.get();
         if let KeyWord(word) = t {
@@ -145,6 +165,7 @@ impl Parser {
                 KeyWordKind::Let => self.let_stmt(),
                 KeyWordKind::While => self.while_stmt(),
                 KeyWordKind::If => self.if_stmt(),
+                KeyWordKind::Return => self.return_stmt(),
                 unexpected => panic!("undefined statement! {:?}", unexpected),
             }
         } else {
@@ -370,5 +391,19 @@ mod tests {
                 None,
             ),
         );
+    }
+
+    #[test]
+    fn return_stmt() {
+        fn test(v: Vec<Token>, ast: AST) {
+            let mut p = Parser::new(v);
+            assert_eq!(p.statement(), ast);
+        }
+        test(tokenize("return 1;"), AST::return_stmt(Some(Integer(1))));
+        test(
+            tokenize("return 1 + 2;"),
+            AST::return_stmt(Some(AST::binop('+', Integer(1), Integer(2)))),
+        );
+        test(tokenize("return ;"), AST::return_stmt(None))
     }
 }
