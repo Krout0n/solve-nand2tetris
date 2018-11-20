@@ -83,6 +83,15 @@ impl Lexer {
             }
             '{' | '}' | '(' | ')' | '[' | ']' | '.' | ',' | ';' | '+' | '-' | '*' | '/' | '&'
             | '|' | '<' | '>' | '=' | '~' => Symbol(ch),
+            '"' => {
+                self.read_char();
+                let mut literal = String::new();
+                while Some('"') != self.ch {
+                    literal.push_str(&self.ch.unwrap().to_string());
+                    self.read_char();
+                }
+                StringConstant(literal)
+            }
             _ => panic!("unexpected char!: '{:?}'", ch),
         }
     }
@@ -283,5 +292,16 @@ mod tests {
             ],
         );
         test("123;", vec![IntegerConstant(123), Symbol(';')]);
+    }
+
+    #[test]
+    fn string_constant() {
+        fn test(input: &'static str) {
+            let st = format!("\"{}\"", input);
+            let mut le = l(st.clone());
+            assert_eq!(le.lex(), StringConstant(input.to_string()));
+        }
+        test("hello");
+        test("hello, world");
     }
 }
