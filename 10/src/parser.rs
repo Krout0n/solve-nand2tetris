@@ -13,6 +13,7 @@ pub enum VarType {
 pub enum AST {
     Integer(u16),
     Identifier(String),
+    SubroutineCall(String, Vec<AST>),
     VarDec(VarType, Vec<String>),
     LetStmt(String, Box<AST>),
     WhileStmt(Box<AST>, Box<AST>),
@@ -55,10 +56,6 @@ impl AST {
         }
     }
 
-    fn compound() -> Self {
-        AST::Compound(vec![])
-    }
-
     fn unaryop(op: char, left: AST) -> Self {
         AST::UnaryOP(op, Box::new(left))
     }
@@ -75,7 +72,7 @@ pub struct Parser {
 }
 
 impl Parser {
-    fn new(tokens: Vec<Token>) -> Self {
+    pub fn new(tokens: Vec<Token>) -> Self {
         Parser {
             index: 0,
             tokens,
@@ -83,11 +80,34 @@ impl Parser {
         }
     }
 
+    fn expression_list(&mut self) -> Vec<AST> {
+        self.expect(Symbol('('));
+        let mut expr_list = vec![];
+        loop {
+            if let Symbol(')') = self.peek() {
+                break;
+            }
+            expr_list.push(self.expression());
+            if let Symbol(')') = self.peek() {
+                break;
+            }
+            self.expect(Symbol(','));
+        }
+        self.expect(Symbol(')'));
+        expr_list
+    }
+
     fn term(&mut self) -> AST {
         let t = self.get();
         match t {
             IntegerConstant(i) => Integer(i),
-            Ident(s) => Identifier(s),
+            Ident(s) => {
+                if let Symbol('(') = self.peek() {
+                    AST::SubroutineCall(s, self.expression_list())
+                } else {
+                    Identifier(s)
+                }
+            }
             Symbol('-') => AST::unaryop('-', self.term()),
             Symbol('~') => AST::unaryop('~', self.term()),
             KeyWord(KeyWordKind::True) => Bool(true),
@@ -182,7 +202,7 @@ impl Parser {
         }
     }
 
-    fn statements(&mut self) -> AST {
+    pub fn statements(&mut self) -> AST {
         let mut stmts = vec![];
         loop {
             if self.peek() == Symbol('}') {
@@ -464,5 +484,25 @@ mod tests {
             tokenize("var int x,y;"),
             AST::VarDec(VarType::Int, vec!["x".to_string(), "y".to_string()]),
         )
+    }
+
+    #[test]
+    fn subroutine_call() {
+        fn test(v: Vec<Token>, ast: AST) {
+            let mut p = Parser::new(v);
+            assert_eq!(p.term(), ast);
+        }
+        fn subroutine_call(s: &'static str, expr_list: Vec<AST>) -> AST {
+            AST::SubroutineCall(s.to_string(), expr_list)
+        }
+
+        test(tokenize("add()"), subroutine_call("add", vec![]));
+        test(
+            tokenize("add(1, 2+3)"),
+            subroutine_call(
+                "add",
+                vec![AST::Integer(1), AST::binop('+', Integer(2), Integer(3))],
+            ),
+        );
     }
 }
