@@ -118,6 +118,11 @@ impl Parser {
             }
             Symbol('-') => AST::unaryop('-', self.term()),
             Symbol('~') => AST::unaryop('~', self.term()),
+            Symbol('(') => {
+                let expr = self.expression();
+                self.expect(Symbol(')'));
+                expr
+            }
             KeyWord(KeyWordKind::True) => Bool(true),
             KeyWord(KeyWordKind::False) => Bool(false),
             KeyWord(KeyWordKind::Null) => Null,
@@ -147,9 +152,9 @@ impl Parser {
     fn let_stmt(&mut self) -> AST {
         let t = self.get();
         if let Ident(name) = t {
-            assert_eq!(self.get(), Symbol('='));
+            self.expect(Symbol('='));
             let stmt = AST::let_stmt(name, self.expression());
-            assert_eq!(self.get(), Symbol(';'));
+            self.expect(Symbol(';'));
             stmt
         } else {
             panic!("expected ident token! {:#?}", t);
@@ -317,6 +322,14 @@ mod tests {
         test(
             vec![ident("x"), Symbol('+'), IntegerConstant(2)],
             AST::binop('+', Identifier("x".to_string()), Integer(2)),
+        );
+        test(
+            tokenize("1+(2+3)"),
+            AST::binop('+', Integer(1), AST::binop('+', Integer(2), Integer(3))),
+        );
+        test(
+            tokenize("1+2+3"),
+            AST::binop('+', AST::binop('+', Integer(1), Integer(2)), Integer(3)),
         );
     }
 
