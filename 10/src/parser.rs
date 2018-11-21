@@ -14,6 +14,7 @@ pub enum AST {
     Integer(u16),
     Identifier(String),
     SubroutineCall(String, Vec<AST>),
+    SubScriptAcc(String, Box<AST>),
     MethodCall(String, String, Vec<AST>),
     VarDec(VarType, Vec<String>),
     LetStmt(String, Box<AST>),
@@ -31,6 +32,10 @@ pub enum AST {
 use self::AST::*;
 
 impl AST {
+    fn subscript_acc(s: String, expr: AST) -> Self {
+        SubScriptAcc(s, Box::new(expr))
+    }
+
     fn let_stmt(name: String, expr: AST) -> Self {
         LetStmt(name, Box::new(expr))
     }
@@ -102,20 +107,24 @@ impl Parser {
         let t = self.get();
         match t {
             IntegerConstant(i) => Integer(i),
-            Ident(s) => {
-                if let Symbol('(') = self.peek() {
-                    AST::SubroutineCall(s, self.expression_list())
-                } else if let Symbol('.') = self.peek() {
+            Ident(s) => match self.peek() {
+                Symbol('(') => AST::SubroutineCall(s, self.expression_list()),
+                Symbol('.') => {
                     self.get();
                     if let Ident(t) = self.get() {
                         AST::MethodCall(s, t, self.expression_list())
                     } else {
                         panic!("expected ident!");
                     }
-                } else {
-                    Identifier(s)
                 }
-            }
+                Symbol('[') => {
+                    self.get();
+                    let expr = self.expression();
+                    self.expect(Symbol(']'));
+                    AST::subscript_acc(s, expr)
+                }
+                _ => Identifier(s),
+            },
             Symbol('-') => AST::unaryop('-', self.term()),
             Symbol('~') => AST::unaryop('~', self.term()),
             Symbol('(') => {
@@ -331,6 +340,16 @@ mod tests {
             tokenize("1+2+3"),
             AST::binop('+', AST::binop('+', Integer(1), Integer(2)), Integer(3)),
         );
+        test(
+            tokenize("x[y[hoge()]]"),
+            AST::subscript_acc(
+                "x".to_string(),
+                AST::subscript_acc(
+                    "y".to_string(),
+                    AST::SubroutineCall("hoge".to_string(), vec![]),
+                ),
+            ),
+        )
     }
 
     #[test]
