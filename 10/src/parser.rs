@@ -18,8 +18,9 @@ pub enum AST {
     MethodCall(String, String, Vec<AST>),
     VarDec(VarType, Vec<String>),
     LetStmt(String, Box<AST>),
-    WhileStmt(Box<AST>, Box<AST>),
     IfStmt(Box<AST>, Box<AST>, Option<Box<AST>>),
+    WhileStmt(Box<AST>, Box<AST>),
+    DoStmt(Box<AST>),
     ReturnStmt(Option<Box<AST>>),
     Compound(Vec<AST>),
     BinOP(char, Box<AST>, Box<AST>),
@@ -40,10 +41,6 @@ impl AST {
         LetStmt(name, Box::new(expr))
     }
 
-    fn while_stmt(cond: AST, stmt: AST) -> Self {
-        WhileStmt(Box::new(cond), Box::new(stmt))
-    }
-
     fn if_stmt(cond: AST, stmts: AST, else_stmt: Option<AST>) -> Self {
         let cond = Box::new(cond);
         let stmts = Box::new(stmts);
@@ -52,6 +49,14 @@ impl AST {
         } else {
             IfStmt(cond, stmts, None)
         }
+    }
+
+    fn while_stmt(cond: AST, stmt: AST) -> Self {
+        WhileStmt(Box::new(cond), Box::new(stmt))
+    }
+
+    fn do_stmt(call: AST) -> Self {
+        DoStmt(Box::new(call))
     }
 
     fn return_stmt(expr: Option<AST>) -> Self {
@@ -170,16 +175,6 @@ impl Parser {
         }
     }
 
-    fn while_stmt(&mut self) -> AST {
-        self.expect(Symbol('('));
-        let cond = self.expression();
-        self.expect(Symbol(')'));
-        self.expect(Symbol('{'));
-        let stmts = self.statements();
-        self.expect(Symbol('}'));
-        AST::while_stmt(cond, stmts)
-    }
-
     fn if_stmt(&mut self) -> AST {
         self.expect(Symbol('('));
         let cond = self.expression();
@@ -198,6 +193,22 @@ impl Parser {
         }
     }
 
+    fn while_stmt(&mut self) -> AST {
+        self.expect(Symbol('('));
+        let cond = self.expression();
+        self.expect(Symbol(')'));
+        self.expect(Symbol('{'));
+        let stmts = self.statements();
+        self.expect(Symbol('}'));
+        AST::while_stmt(cond, stmts)
+    }
+
+    fn do_stmt(&mut self) -> AST {
+        let term = self.term();
+        self.expect(Symbol(';'));
+        AST::do_stmt(term)
+    }
+
     fn return_stmt(&mut self) -> AST {
         if let Symbol(';') = self.peek() {
             self.get();
@@ -214,8 +225,9 @@ impl Parser {
         if let KeyWord(word) = t {
             match word {
                 KeyWordKind::Let => self.let_stmt(),
-                KeyWordKind::While => self.while_stmt(),
                 KeyWordKind::If => self.if_stmt(),
+                KeyWordKind::While => self.while_stmt(),
+                KeyWordKind::Do => self.do_stmt(),
                 KeyWordKind::Return => self.return_stmt(),
                 unexpected => panic!("undefined statement! {:?}", unexpected),
             }
@@ -500,6 +512,22 @@ mod tests {
             AST::return_stmt(Some(AST::binop('+', Integer(1), Integer(2)))),
         );
         test(tokenize("return ;"), AST::return_stmt(None))
+    }
+
+    #[test]
+    fn do_stmt() {
+        fn test(input: &'static str, ast: AST) {
+            let mut p = Parser::new(tokenize(input));
+            assert_eq!(p.statement(), ast);
+        }
+        test(
+            "do b.q();",
+            AST::do_stmt(AST::MethodCall("b".to_string(), "q".to_string(), vec![])),
+        );
+        test(
+            "do g(5,7);",
+            AST::do_stmt(AST::SubroutineCall("g".to_string(), vec![Integer(5), Integer(7)])),
+        );
     }
 
     #[test]
