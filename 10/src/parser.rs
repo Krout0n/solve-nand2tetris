@@ -17,6 +17,7 @@ pub enum AST {
     SubScriptAcc(String, Box<AST>),
     MethodCall(String, String, Vec<AST>),
     VarDec(VarType, Vec<String>),
+    SubroutineBody(Vec<AST>, Box<AST>),
     LetStmt(String, Box<AST>),
     IfStmt(Box<AST>, Box<AST>, Option<Box<AST>>),
     WhileStmt(Box<AST>, Box<AST>),
@@ -33,6 +34,10 @@ pub enum AST {
 use self::AST::*;
 
 impl AST {
+    fn subroutine_body(v: Vec<AST>, stmts: AST) -> Self {
+        SubroutineBody(v, Box::new(stmts))
+    }
+
     fn subscript_acc(s: String, expr: AST) -> Self {
         SubScriptAcc(s, Box::new(expr))
     }
@@ -272,6 +277,21 @@ impl Parser {
         }
         self.expect(Symbol(';'));
         AST::VarDec(typ, vars)
+    }
+
+    fn subroutine_body(&mut self) -> AST {
+        self.expect(Symbol('{'));
+        let mut vars = vec![];
+        loop {
+            if let KeyWord(KeyWordKind::Var) = self.peek() {
+                vars.push(self.var_dec());
+            } else {
+                break;
+            }
+        }
+        let stmts = self.statements();
+        self.expect(Symbol('}'));
+        AST::subroutine_body(vars, stmts)
     }
 
     fn expect(&mut self, t: Token) {
@@ -526,7 +546,10 @@ mod tests {
         );
         test(
             "do g(5,7);",
-            AST::do_stmt(AST::SubroutineCall("g".to_string(), vec![Integer(5), Integer(7)])),
+            AST::do_stmt(AST::SubroutineCall(
+                "g".to_string(),
+                vec![Integer(5), Integer(7)],
+            )),
         );
     }
 
@@ -584,6 +607,64 @@ mod tests {
                 "hoge",
                 "add",
                 vec![AST::Bool(true), AST::binop('+', Integer(2), Integer(3))],
+            ),
+        );
+    }
+
+    #[test]
+    fn subroutine_body() {
+        fn test(input: &'static str, ast: AST) {
+            let mut p = Parser::new(tokenize(input));
+            assert_eq!(p.subroutine_body(), ast);
+        }
+        
+        let x = "x".to_string();
+        let y = "y".to_string();
+
+        test(
+            "{ var int x, y; }",
+            AST::subroutine_body(
+                vec![AST::VarDec(VarType::Int, vec![x.clone(), y.clone()])],
+                AST::Compound(vec![]),
+            ),
+        );
+
+        test(
+            "{var int x, y; if (x < y) { return 1; } else { return 2;} } ",
+            AST::subroutine_body(
+                vec![AST::VarDec(VarType::Int, vec![x.clone(), y.clone()])],
+                AST::Compound(vec![AST::if_stmt(
+                    AST::binop('<', AST::Identifier(x.clone()), AST::Identifier(y.clone())),
+                    AST::Compound(vec![AST::return_stmt(Some(AST::Integer(1)))]),
+                    Some(AST::Compound(vec![AST::return_stmt(Some(AST::Integer(2)))])),
+                )]),
+            ),
+        );
+
+        test(
+            "{var int x, y; if (x < y) { return 1; } else { return 2;} do calc(); } ",
+            AST::subroutine_body(
+                vec![AST::VarDec(VarType::Int, vec![x.clone(), y.clone()])],
+                AST::Compound(vec![
+                    AST::if_stmt(
+                        AST::binop('<', AST::Identifier(x.clone()), AST::Identifier(y.clone())),
+                        AST::Compound(vec![AST::return_stmt(Some(AST::Integer(1)))]),
+                        Some(AST::Compound(vec![AST::return_stmt(Some(AST::Integer(2)))])),
+                    ),
+                    AST::do_stmt(AST::SubroutineCall("calc".to_string(), vec![])),
+                ]),
+            ),
+        );
+
+        test(
+            "{ if (x < y) { return 1; } else { return 2;} } ",
+            AST::subroutine_body(
+                vec![],
+                AST::Compound(vec![AST::if_stmt(
+                    AST::binop('<', AST::Identifier(x.clone()), AST::Identifier(y.clone())),
+                    AST::Compound(vec![AST::return_stmt(Some(AST::Integer(1)))]),
+                    Some(AST::Compound(vec![AST::return_stmt(Some(AST::Integer(2)))])),
+                )]),
             ),
         );
     }
