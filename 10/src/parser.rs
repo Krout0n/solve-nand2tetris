@@ -526,7 +526,10 @@ mod tests {
         );
         test(
             "do g(5,7);",
-            AST::do_stmt(AST::SubroutineCall("g".to_string(), vec![Integer(5), Integer(7)])),
+            AST::do_stmt(AST::SubroutineCall(
+                "g".to_string(),
+                vec![Integer(5), Integer(7)],
+            )),
         );
     }
 
