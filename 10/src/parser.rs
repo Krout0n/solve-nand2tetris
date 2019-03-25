@@ -1,14 +1,14 @@
 #![allow(dead_code)]
 
 use self::Expr::*;
-use ast::{Expr, KeyConstant, Statements};
+use ast::{Expr, KeyConstant, Stmt, Stmts};
 use token::Token::*;
 use token::*;
 
 pub struct Parser {
     index: usize,
     tokens: Vec<Token>,
-    result: Statements,
+    result: Stmts,
 }
 
 impl Parser {
@@ -49,6 +49,24 @@ impl Parser {
         left
     }
 
+    fn return_stmt(&mut self) -> Stmt {
+        self.get();
+        if let Symbol(';') = self.peek() {
+            self.get();
+            Stmt::Return(None)
+        } else {
+            let expr = self.expr();
+            Stmt::Return(Some(expr))
+        }
+    }
+
+    fn stmt(&mut self) -> Stmt {
+        match self.peek() {
+            KeyWord(KeyWordKind::Return) => self.return_stmt(),
+            _ => unimplemented!(),
+        }
+    }
+
     fn peek(&self) -> Token {
         if let Some(t) = self.tokens.get(self.index) {
             t.clone()
@@ -72,7 +90,7 @@ mod tests {
     use self::Expr::*;
     use self::KeyConstant::*;
     use super::Parser;
-    use ast::{Expr, KeyConstant, Statement};
+    use ast::{Expr, KeyConstant, Stmt};
 
     const I1: Expr = Integer(1);
 
@@ -115,5 +133,17 @@ mod tests {
             tokenize("-1+1"),
             Expr::binop('+', Expr::unary('-', Integer(1)), Integer(1)),
         );
+    }
+
+    #[test]
+    fn stmt() {
+        fn test(t: Vec<Token>, right: Stmt) {
+            let mut p = Parser::new(t);
+            assert_eq!(p.stmt(), right);
+        }
+
+        test(tokenize("return 1;"), Stmt::Return(Some(Integer(1))));
+
+        test(tokenize("return;"), Stmt::Return(None));
     }
 }
