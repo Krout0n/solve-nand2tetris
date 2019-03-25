@@ -1,5 +1,5 @@
-use self::Token::*;
-use lexer::{KeyWordKind, Token};
+use token::*;
+use token::Token::*;
 
 fn print_format(kind: &'static str, value: String) {
     println!("<{}> {} </{}>", kind, value, kind);
@@ -52,7 +52,8 @@ pub fn output_tokens(v: Vec<Token>) {
 #[cfg(test)]
 mod tests {
     use super::output_tokens;
-    use lexer::{Lexer, Token};
+    use lexer::Lexer;
+    use token::*;
 
     fn tokenize(s: &'static str) -> Vec<Token> {
         let mut l = Lexer::new(s.to_string());

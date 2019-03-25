@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
-use ast::*;
+use ast::{Expr, Statements};
 use self::Expr::*;
-use lexer::Token;
-use self::Token::*;
+use token::*;
+use token::Token::*;
 
 pub struct Parser {
     index: usize,
@@ -66,7 +66,7 @@ impl Parser {
 mod tests {
 
     use lexer::Lexer;
-    use lexer::Token;
+    use token::*;
 
     use ast::{Expr, Statement};
     use self::Expr::*;
