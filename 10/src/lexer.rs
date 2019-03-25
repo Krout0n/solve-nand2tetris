@@ -1,6 +1,6 @@
-use token::*;
 use self::KeyWordKind::*;
 use self::Token::*;
+use token::*;
 
 pub struct Lexer {
     index: usize,

@@ -1,5 +1,5 @@
-use token::*;
 use token::Token::*;
+use token::*;
 
 fn print_format(kind: &'static str, value: String) {
     println!("<{}> {} </{}>", kind, value, kind);
