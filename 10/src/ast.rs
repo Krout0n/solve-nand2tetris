@@ -1,24 +1,27 @@
 use token::KeyWordKind;
 
-pub type Statements = Vec<Statement>;
+pub type Stmts = Vec<Stmt>;
 
-pub enum Statement {
+#[derive(Debug, PartialEq)]
+pub enum Stmt {
     Let {
         var_name: String,
         expr: Expr,
     },
     If {
         cond: Expr,
-        stmts: Statements,
-        els: Option<Statements>,
+        stmts: Stmts,
+        els: Option<Stmts>,
     },
     While {
         cond: Expr,
-        stmts: Statements,
+        stmts: Stmts,
     },
     Do(Expr),
-    Return(Expr),
+    Return(Option<Expr>),
 }
+
+impl Stmt {}
 
 #[derive(Debug, PartialEq)]
 pub enum KeyConstant {
