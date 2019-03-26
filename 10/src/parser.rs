@@ -28,6 +28,11 @@ impl Parser {
             Ident(s) => Identifier(s),
             Symbol('~') => Expr::unary('~', self.term()),
             Symbol('-') => Expr::unary('-', self.term()),
+            Symbol('(') => {
+                let expr = self.expr();
+                self.expect(Symbol(')'));
+                expr
+            }
             KeyWord(kind) => Expr::keyword(kind),
             _ => panic!("term error! {:?}", t),
         }
@@ -189,7 +194,10 @@ mod tests {
 
         test(tokenize("x"), Expr::Identifier("x".to_string()));
 
-        test(tokenize("\"abcdef\""), Expr::StringConstant("abcdef".to_string()));
+        test(
+            tokenize("\"abcdef\""),
+            Expr::StringConstant("abcdef".to_string()),
+        );
     }
 
     #[test]
@@ -204,6 +212,11 @@ mod tests {
         test(
             tokenize("-1+1"),
             Expr::binop('+', Expr::unary('-', Integer(1)), Integer(1)),
+        );
+
+        test(
+            tokenize("1+(2+3)"),
+            Expr::binop('+', I1, Expr::binop('+', Integer(2), Integer(3))),
         );
     }
 
