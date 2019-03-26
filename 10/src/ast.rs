@@ -34,6 +34,10 @@ impl Stmt {
     pub fn if_stmt(cond: Expr, stmts: Stmts, els: Option<Stmts>) -> Self {
         Stmt::If { cond, stmts, els }
     }
+
+    pub fn while_stmt(cond: Expr, stmts: Stmts) -> Self {
+        Stmt::While { cond, stmts }
+    }
 }
 
 #[derive(Debug, PartialEq)]

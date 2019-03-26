@@ -50,6 +50,17 @@ impl Parser {
         left
     }
 
+    fn while_stmt(&mut self) -> Stmt {
+        self.get();
+        self.expect(Symbol('('));
+        let cond = self.expr();
+        self.expect(Symbol(')'));
+        self.expect(Symbol('{'));
+        let stmts = self.stmts();
+        self.expect(Symbol('}'));
+        Stmt::while_stmt(cond, stmts)
+    }
+
     fn if_stmt(&mut self) -> Stmt {
         self.get();
         self.expect(Symbol('('));
@@ -106,6 +117,7 @@ impl Parser {
             KeyWord(KeyWordKind::Return) => self.return_stmt(),
             KeyWord(KeyWordKind::Let) => self.let_stmt(),
             KeyWord(KeyWordKind::If) => self.if_stmt(),
+            KeyWord(KeyWordKind::While) => self.while_stmt(),
             _ => unimplemented!(),
         }
     }
@@ -220,11 +232,7 @@ mod tests {
 
         test(
             tokenize("if (true) { return; }"),
-            Stmt::if_stmt(
-                Expr::Keyword(True),
-                vec![Stmt::Return(None)],
-                None,
-            ),
+            Stmt::if_stmt(Expr::Keyword(True), vec![Stmt::Return(None)], None),
         );
 
         test(
@@ -234,6 +242,11 @@ mod tests {
                 vec![Stmt::Return(None)],
                 Some(vec![Stmt::Return(Some(Integer(2)))]),
             ),
+        );
+
+        test(
+            tokenize("while (true) { return; }"),
+            Stmt::while_stmt(Expr::Keyword(True), vec![Stmt::Return(None)]),
         );
     }
 }
