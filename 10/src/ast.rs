@@ -30,6 +30,10 @@ impl Stmt {
             expr,
         }
     }
+
+    pub fn if_stmt(cond: Expr, stmts: Stmts, els: Option<Stmts>) -> Self {
+        Stmt::If { cond, stmts, els }
+    }
 }
 
 #[derive(Debug, PartialEq)]

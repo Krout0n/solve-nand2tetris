@@ -50,6 +50,25 @@ impl Parser {
         left
     }
 
+    fn if_stmt(&mut self) -> Stmt {
+        self.get();
+        self.expect(Symbol('('));
+        let cond = self.expr();
+        self.expect(Symbol(')'));
+        self.expect(Symbol('{'));
+        let stmts = self.stmts();
+        self.expect(Symbol('}'));
+        if let KeyWord(KeyWordKind::Else) = self.peek() {
+            self.get();
+            self.expect(Symbol('{'));
+            let els = self.stmts();
+            self.expect(Symbol('}'));
+            Stmt::if_stmt(cond, stmts, Some(els))
+        } else {
+            Stmt::if_stmt(cond, stmts, None)
+        }
+    }
+
     fn let_stmt(&mut self) -> Stmt {
         self.get();
         if let Ident(name) = self.get() {
@@ -77,6 +96,7 @@ impl Parser {
             Stmt::Return(None)
         } else {
             let expr = self.expr();
+            self.expect(Symbol(';'));
             Stmt::Return(Some(expr))
         }
     }
@@ -85,8 +105,17 @@ impl Parser {
         match self.peek() {
             KeyWord(KeyWordKind::Return) => self.return_stmt(),
             KeyWord(KeyWordKind::Let) => self.let_stmt(),
+            KeyWord(KeyWordKind::If) => self.if_stmt(),
             _ => unimplemented!(),
         }
+    }
+
+    fn stmts(&mut self) -> Stmts {
+        let mut v = vec![];
+        while let KeyWord(_) = self.peek() {
+            v.push(self.stmt())
+        }
+        v
     }
 
     fn expect(&mut self, t: Token) {
@@ -187,6 +216,24 @@ mod tests {
         test(
             tokenize("let x[1] = 2;"),
             Stmt::let_stmt("x".to_string(), Some(I1), Integer(2)),
+        );
+
+        test(
+            tokenize("if (true) { return; }"),
+            Stmt::if_stmt(
+                Expr::Keyword(True),
+                vec![Stmt::Return(None)],
+                None,
+            ),
+        );
+
+        test(
+            tokenize("if (true) { return; } else { return 2;}"),
+            Stmt::if_stmt(
+                Expr::Keyword(True),
+                vec![Stmt::Return(None)],
+                Some(vec![Stmt::Return(Some(Integer(2)))]),
+            ),
         );
     }
 }
