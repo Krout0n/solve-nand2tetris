@@ -1,5 +1,7 @@
 use token::KeyWordKind;
 
+type VarName = String;
+
 pub type Stmts = Vec<Stmt>;
 
 #[derive(Debug, PartialEq)]
@@ -54,8 +56,9 @@ pub enum Expr {
     Unary(char, Box<Expr>),
     Integer(u16),
     Keyword(KeyConstant),
-    Identifier(String),
+    Identifier(VarName),
     StringConstant(String),
+    ArrayAcc(VarName, Box<Expr>),
 }
 
 impl Expr {
@@ -75,5 +78,9 @@ impl Expr {
             KeyWordKind::This => KeyConstant::This,
             _ => panic!("Unexpected keyword! {:?}", kind),
         })
+    }
+
+    pub fn array_acc(name: VarName, expr: Expr) -> Self {
+        Expr::ArrayAcc(name, Box::new(expr))
     }
 }

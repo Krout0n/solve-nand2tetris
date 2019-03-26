@@ -25,6 +25,12 @@ impl Parser {
         match t {
             IntegerConstant(i) => Integer(i),
             Token::StringConstant(s) => Expr::StringConstant(s),
+            Ident(ref s) if Symbol('[') == self.peek() => {
+                self.get();
+                let expr = self.expr();
+                self.expect(Symbol(']'));
+                Expr::array_acc(s.clone(), expr)
+            }
             Ident(s) => Identifier(s),
             Symbol('~') => Expr::unary('~', self.term()),
             Symbol('-') => Expr::unary('-', self.term()),
@@ -197,6 +203,11 @@ mod tests {
         test(
             tokenize("\"abcdef\""),
             Expr::StringConstant("abcdef".to_string()),
+        );
+
+        test(
+            tokenize("x[1+1]"),
+            Expr::array_acc("x".to_string(), Expr::binop('+', I1, I1)),
         );
     }
 
