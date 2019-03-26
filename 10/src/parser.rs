@@ -24,6 +24,7 @@ impl Parser {
         let t = self.get();
         match t {
             IntegerConstant(i) => Integer(i),
+            Token::StringConstant(s) => Expr::StringConstant(s),
             Ident(s) => Identifier(s),
             Symbol('~') => Expr::unary('~', self.term()),
             Symbol('-') => Expr::unary('-', self.term()),
@@ -187,6 +188,8 @@ mod tests {
         test(tokenize("null"), Expr::Keyword(Null));
 
         test(tokenize("x"), Expr::Identifier("x".to_string()));
+
+        test(tokenize("\"abcdef\""), Expr::StringConstant("abcdef".to_string()));
     }
 
     #[test]

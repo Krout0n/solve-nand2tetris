@@ -55,6 +55,7 @@ pub enum Expr {
     Integer(u16),
     Keyword(KeyConstant),
     Identifier(String),
+    StringConstant(String),
 }
 
 impl Expr {
