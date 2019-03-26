@@ -24,6 +24,7 @@ impl Parser {
         let t = self.get();
         match t {
             IntegerConstant(i) => Integer(i),
+            Ident(s) => Identifier(s),
             Symbol('~') => Expr::unary('~', self.term()),
             Symbol('-') => Expr::unary('-', self.term()),
             KeyWord(kind) => Expr::keyword(kind),
@@ -49,6 +50,26 @@ impl Parser {
         left
     }
 
+    fn let_stmt(&mut self) -> Stmt {
+        self.get();
+        if let Ident(name) = self.get() {
+            let acc = if let Symbol('[') = self.peek() {
+                self.get();
+                let acc = self.expr();
+                self.expect(Symbol(']'));
+                Some(acc)
+            } else {
+                None
+            };
+            self.expect(Symbol('='));
+            let expr = self.expr();
+            self.expect(Symbol(';'));
+            Stmt::let_stmt(name, acc, expr)
+        } else {
+            panic!("Unexpected token!");
+        }
+    }
+
     fn return_stmt(&mut self) -> Stmt {
         self.get();
         if let Symbol(';') = self.peek() {
@@ -63,8 +84,13 @@ impl Parser {
     fn stmt(&mut self) -> Stmt {
         match self.peek() {
             KeyWord(KeyWordKind::Return) => self.return_stmt(),
+            KeyWord(KeyWordKind::Let) => self.let_stmt(),
             _ => unimplemented!(),
         }
+    }
+
+    fn expect(&mut self, t: Token) {
+        assert_eq!(self.get(), t);
     }
 
     fn peek(&self) -> Token {
@@ -118,6 +144,8 @@ mod tests {
         test(tokenize("this"), Expr::Keyword(This));
 
         test(tokenize("null"), Expr::Keyword(Null));
+
+        test(tokenize("x"), Expr::Identifier("x".to_string()));
     }
 
     #[test]
@@ -145,5 +173,20 @@ mod tests {
         test(tokenize("return 1;"), Stmt::Return(Some(Integer(1))));
 
         test(tokenize("return;"), Stmt::Return(None));
+
+        test(
+            tokenize("let x = 1;"),
+            Stmt::let_stmt("x".to_string(), None, Integer(1)),
+        );
+
+        test(
+            tokenize("let x = 1+1;"),
+            Stmt::let_stmt("x".to_string(), None, Expr::binop('+', I1, I1)),
+        );
+
+        test(
+            tokenize("let x[1] = 2;"),
+            Stmt::let_stmt("x".to_string(), Some(I1), Integer(2)),
+        );
     }
 }

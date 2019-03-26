@@ -6,6 +6,7 @@ pub type Stmts = Vec<Stmt>;
 pub enum Stmt {
     Let {
         var_name: String,
+        acc: Option<Expr>,
         expr: Expr,
     },
     If {
@@ -21,7 +22,15 @@ pub enum Stmt {
     Return(Option<Expr>),
 }
 
-impl Stmt {}
+impl Stmt {
+    pub fn let_stmt(var_name: String, acc: Option<Expr>, expr: Expr) -> Self {
+        Stmt::Let {
+            var_name,
+            acc,
+            expr,
+        }
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub enum KeyConstant {
@@ -37,6 +46,7 @@ pub enum Expr {
     Unary(char, Box<Expr>),
     Integer(u16),
     Keyword(KeyConstant),
+    Identifier(String),
 }
 
 impl Expr {
