@@ -31,6 +31,22 @@ impl Parser {
                 self.expect(Symbol(']'));
                 Expr::array_acc(s.clone(), expr)
             }
+            Ident(ref s) if Symbol('(') == self.peek() => {
+                self.get();
+                let expr_list = if let Symbol(')') = self.peek() {
+                    self.get();
+                    vec![]
+                } else {
+                    let mut v = vec![self.expr()];
+                    while let Symbol(',') = self.peek() {
+                        self.get();
+                        v.push(self.expr());
+                    }
+                    self.expect(Symbol(')'));
+                    v
+                };
+                Expr::SubroutineCall(s.clone(), expr_list)
+            }
             Ident(s) => Identifier(s),
             Symbol('~') => Expr::unary('~', self.term()),
             Symbol('-') => Expr::unary('-', self.term()),
@@ -208,6 +224,24 @@ mod tests {
         test(
             tokenize("x[1+1]"),
             Expr::array_acc("x".to_string(), Expr::binop('+', I1, I1)),
+        );
+
+        test(
+            tokenize("x()"),
+            Expr::SubroutineCall("x".to_string(), vec![]),
+        );
+
+        test(
+            tokenize("x(1)"),
+            Expr::SubroutineCall("x".to_string(), vec![I1]),
+        );
+
+        test(
+            tokenize("x(1 + 1, 2)"),
+            Expr::SubroutineCall(
+                "x".to_string(),
+                vec![Expr::binop('+', I1, I1), Expr::Integer(2)],
+            ),
         );
     }
 

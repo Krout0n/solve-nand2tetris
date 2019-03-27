@@ -59,6 +59,7 @@ pub enum Expr {
     Identifier(VarName),
     StringConstant(String),
     ArrayAcc(VarName, Box<Expr>),
+    SubroutineCall(VarName, Vec<Expr>),
 }
 
 impl Expr {
