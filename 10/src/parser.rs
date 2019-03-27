@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use self::Expr::*;
-use ast::{Expr, KeyConstant, Stmt, Stmts};
+use ast::{ClassVarDec, Expr, KeyConstant, StaticOrField, Stmt, Stmts, VarType};
 use token::Token::*;
 use token::*;
 
@@ -179,6 +179,43 @@ impl Parser {
         v
     }
 
+    fn get_var_type(&mut self) -> VarType {
+        match self.get() {
+            KeyWord(KeyWordKind::Int) => VarType::Int,
+            KeyWord(KeyWordKind::Char) => VarType::Char,
+            KeyWord(KeyWordKind::Boolean) => VarType::Boolean,
+            Ident(typ) => VarType::Defined(typ),
+            _ => panic!("Unexpected VarType"),
+        }
+    }
+
+    fn class_var_dec(&mut self) -> ClassVarDec {
+        let static_or_field = match self.get() {
+            KeyWord(KeyWordKind::Static) => StaticOrField::Static,
+            KeyWord(KeyWordKind::Field) => StaticOrField::Field,
+            _ => panic!("expected static or field"),
+        };
+        let var_type = self.get_var_type();
+        let var_names = {
+            if let Ident(var_name) = self.get() {
+                let mut v = vec![var_name];
+                while let Symbol(',') = self.peek() {
+                    self.get();
+                    if let Ident(var_name) = self.get() {
+                        v.push(var_name);
+                    } else {
+                        panic!("expected other var name!");
+                    }
+                }
+                v
+            } else {
+                panic!("expected var name!");
+            }
+        };
+        self.expect(Symbol(';'));
+        ClassVarDec::new(static_or_field, var_type, var_names)
+    }
+
     fn expect(&mut self, t: Token) {
         assert_eq!(self.get(), t);
     }
@@ -205,8 +242,9 @@ mod tests {
 
     use self::Expr::*;
     use self::KeyConstant::*;
+    use self::StaticOrField::*;
     use super::Parser;
-    use ast::{Expr, KeyConstant, Stmt, Stmts};
+    use ast::{ClassVarDec, Expr, KeyConstant, StaticOrField, Stmt, Stmts, VarType};
 
     const I1: Expr = Integer(1);
 
@@ -377,6 +415,45 @@ mod tests {
                 ],
                 None,
             )],
+        );
+    }
+
+    #[test]
+    fn get_var_type() {
+        fn test(t: Vec<Token>, right: VarType) {
+            let mut p = Parser::new(t);
+            assert_eq!(p.get_var_type(), right);
+        }
+
+        test(tokenize("int"), VarType::Int);
+
+        test(tokenize("char"), VarType::Char);
+
+        test(tokenize("boolean"), VarType::Boolean);
+
+        test(tokenize("hoge"), VarType::Defined("hoge".to_string()));
+    }
+
+    #[test]
+    fn class_var_dec() {
+        fn test(t: Vec<Token>, right: ClassVarDec) {
+            let mut p = Parser::new(t);
+            assert_eq!(p.class_var_dec(), right);
+        }
+
+        test(
+            tokenize("static int s;"),
+            ClassVarDec::new(Static, VarType::Int, vec!["s".to_string()]),
+        );
+
+        test(
+            tokenize("field int s, t;"),
+            ClassVarDec::new(Field, VarType::Int, vec!["s".to_string(), "t".to_string()]),
+        );
+
+        test(
+            tokenize("field typ s, t;"),
+            ClassVarDec::new(Field, VarType::Defined("typ".to_string()), vec!["s".to_string(), "t".to_string()]),
         );
     }
 }
