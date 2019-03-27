@@ -206,7 +206,7 @@ mod tests {
     use self::Expr::*;
     use self::KeyConstant::*;
     use super::Parser;
-    use ast::{Expr, KeyConstant, Stmt};
+    use ast::{Expr, KeyConstant, Stmt, Stmts};
 
     const I1: Expr = Integer(1);
 
@@ -357,6 +357,26 @@ mod tests {
                 "calc".to_string(),
                 vec![Expr::binop('+', I1, I1), Expr::Integer(2)],
             )),
+        );
+    }
+
+    #[test]
+    fn stmts() {
+        fn test(t: Vec<Token>, right: Stmts) {
+            let mut p = Parser::new(t);
+            assert_eq!(p.stmts(), right);
+        }
+
+        test(
+            tokenize("if (true) { let x = 1; while (true) { return; }  }"),
+            vec![Stmt::if_stmt(
+                Expr::Keyword(True),
+                vec![
+                    Stmt::let_stmt("x".to_string(), None, Integer(1)),
+                    Stmt::while_stmt(Expr::Keyword(True), vec![Stmt::Return(None)]),
+                ],
+                None,
+            )],
         );
     }
 }
