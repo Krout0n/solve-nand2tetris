@@ -93,6 +93,11 @@ impl Parser {
         left
     }
 
+    fn do_stmt(&mut self) -> Stmt {
+        self.get();
+        Stmt::Do(self.expr())
+    }
+
     fn while_stmt(&mut self) -> Stmt {
         self.get();
         self.expect(Symbol('('));
@@ -161,6 +166,7 @@ impl Parser {
             KeyWord(KeyWordKind::Let) => self.let_stmt(),
             KeyWord(KeyWordKind::If) => self.if_stmt(),
             KeyWord(KeyWordKind::While) => self.while_stmt(),
+            KeyWord(KeyWordKind::Do) => self.do_stmt(),
             _ => unimplemented!(),
         }
     }
@@ -337,6 +343,20 @@ mod tests {
         test(
             tokenize("while (true) { return; }"),
             Stmt::while_stmt(Expr::Keyword(True), vec![Stmt::Return(None)]),
+        );
+
+        test(
+            tokenize("do x()"),
+            Stmt::Do(Expr::SubroutineCall("x".to_string(), vec![])),
+        );
+
+        test(
+            tokenize("do point.calc(1+1, 2)"),
+            Stmt::Do(Expr::ObjectSubroutineCall(
+                "point".to_string(),
+                "calc".to_string(),
+                vec![Expr::binop('+', I1, I1), Expr::Integer(2)],
+            )),
         );
     }
 }
