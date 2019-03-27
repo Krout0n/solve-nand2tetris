@@ -20,6 +20,21 @@ impl Parser {
         }
     }
 
+    fn expr_list(&mut self) -> Vec<Expr> {
+        if let Symbol(')') = self.peek() {
+            self.get();
+            vec![]
+        } else {
+            let mut v = vec![self.expr()];
+            while let Symbol(',') = self.peek() {
+                self.get();
+                v.push(self.expr());
+            }
+            self.expect(Symbol(')'));
+            v
+        }
+    }
+
     fn term(&mut self) -> Expr {
         let t = self.get();
         match t {
@@ -33,19 +48,19 @@ impl Parser {
             }
             Ident(ref s) if Symbol('(') == self.peek() => {
                 self.get();
-                let expr_list = if let Symbol(')') = self.peek() {
-                    self.get();
-                    vec![]
+                Expr::SubroutineCall(s.clone(), self.expr_list())
+            }
+            Ident(ref obj_name) if Symbol('.') == self.peek() => {
+                self.get();
+                if let Ident(method_name) = self.get() {
+                    self.expect(Symbol('('));
+                    Expr::ObjectSubroutineCall(obj_name.clone(), method_name, self.expr_list())
                 } else {
-                    let mut v = vec![self.expr()];
-                    while let Symbol(',') = self.peek() {
-                        self.get();
-                        v.push(self.expr());
-                    }
-                    self.expect(Symbol(')'));
-                    v
-                };
-                Expr::SubroutineCall(s.clone(), expr_list)
+                    panic!(
+                        "Tried to parse around {} as method call but can't",
+                        obj_name
+                    );
+                }
             }
             Ident(s) => Identifier(s),
             Symbol('~') => Expr::unary('~', self.term()),
@@ -240,6 +255,20 @@ mod tests {
             tokenize("x(1 + 1, 2)"),
             Expr::SubroutineCall(
                 "x".to_string(),
+                vec![Expr::binop('+', I1, I1), Expr::Integer(2)],
+            ),
+        );
+
+        test(
+            tokenize("point.calc()"),
+            Expr::ObjectSubroutineCall("point".to_string(), "calc".to_string(), vec![]),
+        );
+
+        test(
+            tokenize("point.calc(1+1, 2)"),
+            Expr::ObjectSubroutineCall(
+                "point".to_string(),
+                "calc".to_string(),
                 vec![Expr::binop('+', I1, I1), Expr::Integer(2)],
             ),
         );

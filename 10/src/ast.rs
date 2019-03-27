@@ -1,6 +1,7 @@
 use token::KeyWordKind;
 
 type VarName = String;
+type SubroutineName = String;
 
 pub type Stmts = Vec<Stmt>;
 
@@ -60,6 +61,7 @@ pub enum Expr {
     StringConstant(String),
     ArrayAcc(VarName, Box<Expr>),
     SubroutineCall(VarName, Vec<Expr>),
+    ObjectSubroutineCall(SubroutineName, VarName, Vec<Expr>),
 }
 
 impl Expr {
