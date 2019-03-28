@@ -2,7 +2,7 @@
 
 use self::Expr::*;
 use ast::{
-    ClassVarDec, Expr, KeyConstant, StaticOrField, Stmt, Stmts, Subroutine, SubroutineDec,
+    Class, ClassVarDec, Expr, KeyConstant, StaticOrField, Stmt, Stmts, Subroutine, SubroutineDec,
     SubroutineKind, VarType,
 };
 use token::Token::*;
@@ -303,6 +303,40 @@ impl Parser {
         ClassVarDec::new(static_or_field, var_type, var_names)
     }
 
+    pub fn parse(&mut self) -> Class {
+        if let KeyWord(KeyWordKind::Class) = self.get() {
+            let name = if let Ident(name) = self.get() {
+                name
+            } else {
+                panic!("expected identifier!");
+            };
+            self.expect(Symbol('{'));
+            let class_var_decs = {
+                let mut v = vec![];
+                loop {
+                    match self.peek() {
+                        KeyWord(KeyWordKind::Static) | KeyWord(KeyWordKind::Field) => {
+                            v.push(self.class_var_dec())
+                        }
+                        _ => break,
+                    };
+                }
+                v
+            };
+            let subroutine_decs = {
+                let mut v = vec![];
+                while Symbol('}') != self.peek() {
+                    v.push(self.subroutine_dec());
+                }
+                v
+            };
+            self.expect(Symbol('}'));
+            Class::new(name, class_var_decs, subroutine_decs)
+        } else {
+            panic!("expected keyword class!");
+        }
+    }
+
     fn expect(&mut self, t: Token) {
         assert_eq!(self.get(), t);
     }
@@ -332,8 +366,8 @@ mod tests {
     use self::StaticOrField::*;
     use super::Parser;
     use ast::{
-        ClassVarDec, Expr, KeyConstant, StaticOrField, Stmt, Stmts, Subroutine, SubroutineDec,
-        SubroutineKind, VarType,
+        Class, ClassVarDec, Expr, KeyConstant, StaticOrField, Stmt, Stmts, Subroutine,
+        SubroutineDec, SubroutineKind, VarType,
     };
 
     const I1: Expr = Integer(1);
@@ -627,6 +661,151 @@ mod tests {
                         )),
                         Return(None),
                     ]),
+                ],
+            ),
+        )
+    }
+
+    #[test]
+    fn class() {
+        use self::Expr::*;
+        use self::Stmt::*;
+        use self::Subroutine::*;
+        use self::SubroutineKind::*;
+        use self::VarType::*;
+
+        fn test(t: Vec<Token>, right: Class) {
+            let mut p = Parser::new(t);
+            assert_eq!(p.parse(), right);
+        }
+
+        test(
+            tokenize(
+                r#"
+            class Main {
+                static boolean test;    // Added for testing -- there is no static keyword
+                                        // in the Square files.
+
+                function void main() {
+                    var SquareGame game;
+                    let game = SquareGame.new();
+                    do game.run();
+                    do game.dispose();
+                    return;
+                }
+
+                function void test() {  // Added to test Jack syntax that is not use in
+                    var int i, j;       // the Square files.
+                    var String s;
+                    var Array a;
+                    if (i) {
+                        let s = i;
+                        let s = j;
+                        let a[i] = j;
+                    }
+                    else {              // There is no else keyword in the Square files.
+                        let i = i;
+                        let j = j;
+                        let i = i | j;
+                    }
+                    return;
+                }
+            }
+        "#,
+            ),
+            Class::new(
+                "Main".to_string(),
+                vec![ClassVarDec::new(Static, Boolean, vec!["test".to_string()])],
+                vec![
+                    SubroutineDec::new(
+                        Function,
+                        Void,
+                        "main".to_string(),
+                        vec![],
+                        vec![
+                            VarDec(
+                                VarType::Defined("SquareGame".to_string()),
+                                vec!["game".to_string()],
+                            ),
+                            Stmts(vec![
+                                Stmt::let_stmt(
+                                    "game".to_string(),
+                                    None,
+                                    ObjectSubroutineCall(
+                                        "SquareGame".to_string(),
+                                        "new".to_string(),
+                                        vec![],
+                                    ),
+                                ),
+                                Do(ObjectSubroutineCall(
+                                    "game".to_string(),
+                                    "run".to_string(),
+                                    vec![],
+                                )),
+                                Do(ObjectSubroutineCall(
+                                    "game".to_string(),
+                                    "dispose".to_string(),
+                                    vec![],
+                                )),
+                                Return(None),
+                            ]),
+                        ],
+                    ),
+                    SubroutineDec::new(
+                        Function,
+                        Void,
+                        "test".to_string(),
+                        vec![],
+                        vec![
+                            VarDec(Int, vec!["i".to_string(), "j".to_string()]),
+                            VarDec(Defined("String".to_string()), vec!["s".to_string()]),
+                            VarDec(Defined("Array".to_string()), vec!["a".to_string()]),
+                            Stmts(vec![
+                                Stmt::if_stmt(
+                                    Expr::Identifier("i".to_string()),
+                                    vec![
+                                        Stmt::let_stmt(
+                                            "s".to_string(),
+                                            None,
+                                            Identifier("i".to_string()),
+                                        ),
+                                        Stmt::let_stmt(
+                                            "s".to_string(),
+                                            None,
+                                            Identifier("j".to_string()),
+                                        ),
+                                        Stmt::let_stmt(
+                                            "a".to_string(),
+                                            Some(Identifier("i".to_string())),
+                                            Identifier("j".to_string()),
+                                        ),
+                                    ],
+                                    Some(vec![
+                                        Stmt::let_stmt(
+                                            "i".to_string(),
+                                            None,
+                                            Identifier("i".to_string()),
+                                        ),
+                                        Stmt::let_stmt(
+                                            "j".to_string(),
+                                            None,
+                                            Identifier("j".to_string()),
+                                        ),
+                                        Stmt::let_stmt(
+                                            "i".to_string(),
+                                            None,
+                                            Expr::binop(
+                                                '|',
+                                                Identifier("i".to_string()),
+                                                Identifier("j".to_string()),
+                                            ),
+                                        ),
+                                    ]),
+                                ),
+                                Return(None),
+                            ]),
+                        ],
+                    ),
                 ],
             ),
         )
