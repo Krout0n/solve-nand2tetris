@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use self::Expr::*;
-use ast::{ClassVarDec, Expr, KeyConstant, StaticOrField, Stmt, Stmts, VarType};
+use ast::{ClassVarDec, Expr, KeyConstant, StaticOrField, Stmt, Stmts, Subroutine, VarType};
 use token::Token::*;
 use token::*;
 
@@ -95,7 +95,9 @@ impl Parser {
 
     fn do_stmt(&mut self) -> Stmt {
         self.get();
-        Stmt::Do(self.expr())
+        let stmt = Stmt::Do(self.expr());
+        self.expect(Symbol(';'));
+        stmt
     }
 
     fn while_stmt(&mut self) -> Stmt {
@@ -189,6 +191,49 @@ impl Parser {
         }
     }
 
+    fn var_dec(&mut self) -> Subroutine {
+        self.get();
+        let var_type = self.get_var_type();
+        let vars = {
+            let mut v = vec![];
+            if let Ident(name) = self.get() {
+                v.push(name);
+                while let Symbol(',') = self.peek() {
+                    self.get();
+                    if let Ident(name) = self.get() {
+                        v.push(name);
+                    } else {
+                        panic!("trailing comma!");
+                    }
+                }
+                v
+            } else {
+                panic!("Expected ident!");
+            }
+        };
+        self.expect(Symbol(';'));
+        Subroutine::VarDec(var_type, vars)
+    }
+
+    fn subroutine_body(&mut self) -> Vec<Subroutine> {
+        self.expect(Symbol('{'));
+        let mut subroutines = vec![];
+        loop {
+            if let Symbol('}') = self.peek() {
+                self.get();
+                break;
+            } else {
+                let body = if let KeyWord(KeyWordKind::Var) = self.peek() {
+                    self.var_dec()
+                } else {
+                    Subroutine::Stmts(self.stmts())
+                };
+                subroutines.push(body);
+            }
+        }
+        subroutines
+    }
+
     fn class_var_dec(&mut self) -> ClassVarDec {
         let static_or_field = match self.get() {
             KeyWord(KeyWordKind::Static) => StaticOrField::Static,
@@ -244,7 +289,7 @@ mod tests {
     use self::KeyConstant::*;
     use self::StaticOrField::*;
     use super::Parser;
-    use ast::{ClassVarDec, Expr, KeyConstant, StaticOrField, Stmt, Stmts, VarType};
+    use ast::{ClassVarDec, Expr, KeyConstant, StaticOrField, Stmt, Stmts, Subroutine, VarType};
 
     const I1: Expr = Integer(1);
 
@@ -384,12 +429,12 @@ mod tests {
         );
 
         test(
-            tokenize("do x()"),
+            tokenize("do x();"),
             Stmt::Do(Expr::SubroutineCall("x".to_string(), vec![])),
         );
 
         test(
-            tokenize("do point.calc(1+1, 2)"),
+            tokenize("do point.calc(1+1, 2);"),
             Stmt::Do(Expr::ObjectSubroutineCall(
                 "point".to_string(),
                 "calc".to_string(),
@@ -453,7 +498,32 @@ mod tests {
 
         test(
             tokenize("field typ s, t;"),
-            ClassVarDec::new(Field, VarType::Defined("typ".to_string()), vec!["s".to_string(), "t".to_string()]),
+            ClassVarDec::new(
+                Field,
+                VarType::Defined("typ".to_string()),
+                vec!["s".to_string(), "t".to_string()],
+            ),
         );
+    }
+
+    #[test]
+    fn subroutine_body() {
+        use self::Expr::*;
+        use self::Stmt::*;
+        use self::Subroutine::*;
+        fn test(t: Vec<Token>, right: Vec<Subroutine>) {
+            let mut p = Parser::new(t);
+            assert_eq!(p.subroutine_body(), right);
+        }
+
+        test(tokenize("{ var SquareGame game; let game = SquareGame.new(); do game.run(); do game.dispose(); return;}",), vec![
+            VarDec(VarType::Defined("SquareGame".to_string()), vec!["game".to_string()]),
+            Stmts(vec![
+                Stmt::let_stmt("game".to_string(), None, ObjectSubroutineCall("SquareGame".to_string(), "new".to_string(), vec![])),
+                Do(ObjectSubroutineCall("game".to_string(), "run".to_string(), vec![])),
+                Do(ObjectSubroutineCall("game".to_string(), "dispose".to_string(), vec![])),
+                Return(None)
+            ])
+        ]);
     }
 }
