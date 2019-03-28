@@ -1,7 +1,10 @@
 #![allow(dead_code)]
 
 use self::Expr::*;
-use ast::{ClassVarDec, Expr, KeyConstant, StaticOrField, Stmt, Stmts, Subroutine, VarType};
+use ast::{
+    ClassVarDec, Expr, KeyConstant, StaticOrField, Stmt, Stmts, Subroutine, SubroutineDec,
+    SubroutineKind, VarType,
+};
 use token::Token::*;
 use token::*;
 
@@ -186,6 +189,7 @@ impl Parser {
             KeyWord(KeyWordKind::Int) => VarType::Int,
             KeyWord(KeyWordKind::Char) => VarType::Char,
             KeyWord(KeyWordKind::Boolean) => VarType::Boolean,
+            KeyWord(KeyWordKind::Void) => VarType::Void,
             Ident(typ) => VarType::Defined(typ),
             _ => panic!("Unexpected VarType"),
         }
@@ -232,6 +236,44 @@ impl Parser {
             }
         }
         subroutines
+    }
+
+    fn subroutine_dec(&mut self) -> SubroutineDec {
+        let kind = SubroutineKind::by_token(self.get());
+        let ret_type = self.get_var_type();
+        let name = if let Ident(name) = self.get() {
+            name
+        } else {
+            panic!("expected identifier!");
+        };
+        self.expect(Symbol('('));
+        let parameter_list = if let Symbol(')') = self.peek() {
+            self.get();
+            vec![]
+        } else {
+            let mut v = vec![];
+            let var_type = self.get_var_type();
+            let var_name = if let Ident(name) = self.get() {
+                name
+            } else {
+                panic!("expected identifier!");
+            };
+            v.push((var_type, var_name));
+            while let Symbol(',') = self.peek() {
+                self.get();
+                let var_type = self.get_var_type();
+                let var_name = if let Ident(name) = self.get() {
+                    name
+                } else {
+                    panic!("expected identifier!");
+                };
+                v.push((var_type, var_name));
+            }
+            self.expect(Symbol(')'));
+            v
+        };
+        let body = self.subroutine_body();
+        SubroutineDec::new(kind, ret_type, name, parameter_list, body)
     }
 
     fn class_var_dec(&mut self) -> ClassVarDec {
@@ -289,7 +331,10 @@ mod tests {
     use self::KeyConstant::*;
     use self::StaticOrField::*;
     use super::Parser;
-    use ast::{ClassVarDec, Expr, KeyConstant, StaticOrField, Stmt, Stmts, Subroutine, VarType};
+    use ast::{
+        ClassVarDec, Expr, KeyConstant, StaticOrField, Stmt, Stmts, Subroutine, SubroutineDec,
+        SubroutineKind, VarType,
+    };
 
     const I1: Expr = Integer(1);
 
@@ -525,5 +570,65 @@ mod tests {
                 Return(None)
             ])
         ]);
+    }
+
+    #[test]
+    fn subroutine_dec() {
+        use self::Expr::*;
+        use self::Stmt::*;
+        use self::Subroutine::*;
+        use self::SubroutineKind::*;
+        use self::VarType::*;
+
+        fn test(t: Vec<Token>, right: SubroutineDec) {
+            let mut p = Parser::new(t);
+            assert_eq!(p.subroutine_dec(), right);
+        }
+
+        test(
+            tokenize(
+                r#"
+            function void main() {
+                var SquareGame game; 
+                let game = SquareGame.new();
+                do game.run();
+                do game.dispose(); return;
+            }"#,
+            ),
+            SubroutineDec::new(
+                Function,
+                Void,
+                "main".to_string(),
+                vec![],
+                vec![
+                    VarDec(
+                        VarType::Defined("SquareGame".to_string()),
+                        vec!["game".to_string()],
+                    ),
+                    Stmts(vec![
+                        Stmt::let_stmt(
+                            "game".to_string(),
+                            None,
+                            ObjectSubroutineCall(
+                                "SquareGame".to_string(),
+                                "new".to_string(),
+                                vec![],
+                            ),
+                        ),
+                        Do(ObjectSubroutineCall(
+                            "game".to_string(),
+                            "run".to_string(),
+                            vec![],
+                        )),
+                        Do(ObjectSubroutineCall(
+                            "game".to_string(),
+                            "dispose".to_string(),
+                            vec![],
+                        )),
+                        Return(None),
+                    ]),
+                ],
+            ),
+        )
     }
 }
